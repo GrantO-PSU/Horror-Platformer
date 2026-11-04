@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Goblin's Hollow</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #030308;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 50% 45%, #0b0a14 0%, #030308 60%, #000 100%);
+    font-family: "Courier New", monospace;
+  }
+  #game {
+    display: block;
+    background: #030308;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    box-shadow:
+      0 0 0 1px rgba(120, 30, 40, 0.25),
+      0 0 60px rgba(120, 20, 30, 0.18),
+      0 24px 80px rgba(0, 0, 0, 0.8);
+    cursor: crosshair;
+    touch-action: none;
+  }
+</style>
+  <script type="module" crossorigin src="./assets/index-AiOLBgtg.js"></script>
+</head>
+<body>
+  <canvas id="game" width="960" height="540" aria-label="Goblin's Hollow game"></canvas>
+
+</body>
+</html>

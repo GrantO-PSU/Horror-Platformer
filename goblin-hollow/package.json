@@ -1,0 +1,15 @@
+{
+  "name": "goblins-hollow",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Goblin's Hollow - a 2D horror platformer built on the mvGoblin sprite pack.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.21"
+  }
+}
