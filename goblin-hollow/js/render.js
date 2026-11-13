@@ -111,6 +111,7 @@ export const Render = {
   /* ---------- level geometry ---------- */
   geometry(ctx, cam, level) {
     for (const s of level.solids) {
+      if (s.isGate) continue;
       if (s.x > cam.x + CFG.W + 240 || s.x + s.w < cam.x - 240) continue;
       this._platform(ctx, s);
     }
@@ -122,6 +123,24 @@ export const Render = {
       if (h.x > cam.x + CFG.W + 120 || h.x + h.w < cam.x - 120) continue;
       this._spikes(ctx, h);
     }
+    if (level.gate && !level.gate.open) this._gate(ctx, level.gate);
+  },
+
+  /* Bone portcullis for the guardian arena. */
+  _gate(ctx, g) {
+    ctx.save();
+    ctx.fillStyle = '#161a20';
+    ctx.fillRect(g.x, g.y, g.w, g.h);
+    ctx.fillStyle = 'rgba(190,182,160,0.55)';
+    for (let y = g.y + 6; y < g.y + g.h - 6; y += 26) {
+      ctx.fillRect(g.x + 3, y, g.w - 6, 5);
+    }
+    ctx.fillStyle = 'rgba(120,110,95,0.75)';
+    ctx.fillRect(g.x + 2, g.y, 4, g.h);
+    ctx.fillRect(g.x + g.w - 6, g.y, 4, g.h);
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(g.x, g.y + g.h - 10, g.w, 10);
+    ctx.restore();
   },
 
   _platform(ctx, s) {
@@ -410,6 +429,11 @@ export const Render = {
     const ps = toScreen(p.x, p.y - 40);
     const flick = 0.93 + 0.07 * Math.sin(t * 9.3) + (Math.random() - 0.5) * 0.03;
     this._hole(lc, ps.x, ps.y, game.lightRadius() * flick, 1);
+
+    if (game.boss && game.boss.state !== 'dead') {
+      const bs = toScreen(game.boss.x, game.boss.y - game.boss.h * 0.55);
+      this._hole(lc, bs.x, bs.y, 300, 0.7);
+    }
 
     for (const tr of Level.torches) {
       const s = toScreen(tr.x, tr.y);

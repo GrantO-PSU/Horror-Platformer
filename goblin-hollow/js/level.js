@@ -1,5 +1,7 @@
 /* Hand-authored level data + AABB collision */
 export const Level = {
+  id: 1,
+  objective: 'embers',      // 'embers' | 'boss'
   w: 4400,
   h: 1500,
   deathY: 1400,
@@ -9,14 +11,44 @@ export const Level = {
   oneways: [],
   hazards: [],
   emberSpawns: [],
+  bowSpawns: [],
   enemySpawns: [],
+  bossSpawn: null,
   checkpointSpawns: [],
   torches: [],
   props: [],
   triggerZones: [],
+  gate: null,
   exit: { x: 3980, y: 980, box: { x: 3940, y: 890, w: 90, h: 95 } },
 
-  build() {
+  /* Wipe every per-level collection, then load the requested stage. */
+  build(id = 1) {
+    this.id = id;
+    this.objective = id === 2 ? 'boss' : 'embers';
+    this.solids.length = 0;
+    this.oneways.length = 0;
+    this.hazards.length = 0;
+    this.emberSpawns = [];
+    this.bowSpawns = [];
+    this.enemySpawns = [];
+    this.checkpointSpawns = [];
+    this.torches = [];
+    this.props = [];
+    this.triggerZones = [];
+    this.bossSpawn = null;
+    this.gate = null;
+
+    if (id === 2) this.buildLevel2();
+    else this.buildLevel1();
+  },
+
+  buildLevel1() {
+    this.w = 4400;
+    this.h = 1500;
+    this.deathY = 1400;
+    this.spawn = { x: 96, y: 980 };
+    this.exit = { x: 3980, y: 980, box: { x: 3940, y: 890, w: 90, h: 95 } };
+
     const S = (x, y, w, h) => this.solids.push({ x, y, w, h });
     const O = (x, y, w) => this.oneways.push({ x, y, w, h: 12, isOneway: true });
     const H = (x, y, w) => this.hazards.push({ x, y, w, h: 20 });
@@ -61,6 +93,12 @@ export const Level = {
       { x: 365, y: 800 },
       { x: 2925, y: 840 },
       { x: 3475, y: 370 },
+    ];
+
+    /* ---- bow powerups ---- */
+    this.bowSpawns = [
+      { x: 1305, y: 745 },
+      { x: 3645, y: 652 },
     ];
 
     /* ---- checkpoints ---- */
@@ -115,8 +153,113 @@ export const Level = {
     ];
   },
 
+  /* ---- Level 2: the sunken vault + giant skeleton miniboss ---- */
+  buildLevel2() {
+    this.w = 3700;
+    this.h = 1500;
+    this.deathY = 1400;
+    this.spawn = { x: 110, y: 980 };
+    this.exit = { x: 3520, y: 980, box: { x: 3480, y: 890, w: 80, h: 95 } };
+
+    const S = (x, y, w, h) => this.solids.push({ x, y, w, h });
+    const O = (x, y, w) => this.oneways.push({ x, y, w, h: 12, isOneway: true });
+    const H = (x, y, w) => this.hazards.push({ x, y, w, h: 20 });
+
+    /* ---- vault approach ---- */
+    S(-80, -200, 80, 1700);            // left wall
+    S(0, 980, 880, 520);               // entry floor
+    O(260, 860, 150);
+    O(470, 770, 150);
+    O(680, 690, 160);                  // bow perch
+    // pit 880..1010
+
+    S(1010, 980, 700, 520);            // mid floor
+    H(1520, 960, 90);                  // spikes
+    O(1130, 880, 150);
+    O(1350, 790, 150);
+    // pit 1710..1850
+
+    S(1850, 1080, 560, 420);           // lower ledge
+    O(1980, 970, 140);
+    H(2120, 1060, 100);                // spikes
+    S(2330, 1040, 80, 40);             // step up toward the arena
+
+    /* ---- guardian arena ---- */
+    S(2410, 980, 1210, 520);           // arena floor (2410..3620)
+    S(3620, -200, 80, 1700);           // right wall
+    O(2700, 860, 170);
+    O(3240, 860, 170);
+    O(2920, 770, 200);
+
+    // bone portcullis that drops once the fight begins
+    this.gate = { x: 2490, y: 700, w: 26, h: 280, isGate: true, open: true };
+    this.solids.push(this.gate);
+
+    /* ---- collectibles ---- */
+    this.emberSpawns = [];
+    this.bowSpawns = [
+      { x: 760, y: 645 },
+      { x: 2450, y: 935 },
+    ];
+
+    /* ---- checkpoints ---- */
+    this.checkpointSpawns = [
+      { x: 140, y: 980 },
+      { x: 1120, y: 980 },
+      { x: 1950, y: 1080 },
+      { x: 2430, y: 980 },
+    ];
+
+    /* ---- enemies ---- */
+    this.enemySpawns = [
+      { x: 620, y: 980, min: 420, max: 860 },
+      { x: 1250, y: 980, min: 1040, max: 1500 },
+      { x: 1640, y: 980, min: 1540, max: 1700 },
+      { x: 1980, y: 1080, min: 1870, max: 2100 },
+      { x: 2280, y: 1080, min: 2230, max: 2400 },
+      { x: 2650, y: 980, min: 2560, max: 2800 },
+    ];
+
+    /* ---- miniboss ---- */
+    this.bossSpawn = { x: 3300, y: 980, min: 2620, max: 3560 };
+
+    /* ---- ambient light ---- */
+    this.torches = [
+      { x: 200, y: 880, r: 125 },
+      { x: 520, y: 880, r: 105 },
+      { x: 800, y: 660, r: 100 },
+      { x: 1180, y: 900, r: 110 },
+      { x: 1580, y: 900, r: 105 },
+      { x: 2000, y: 1000, r: 115 },
+      { x: 2340, y: 1000, r: 105 },
+      { x: 2600, y: 880, r: 130 },
+      { x: 2920, y: 880, r: 120 },
+      { x: 3210, y: 880, r: 120 },
+      { x: 3480, y: 880, r: 110 },
+    ];
+
+    /* ---- decorative props ---- */
+    this.props = [
+      { type: 'bones', x: 430, y: 978 },
+      { type: 'bones', x: 1260, y: 978 },
+      { type: 'bones', x: 2030, y: 1078 },
+      { type: 'bones', x: 2680, y: 978 },
+      { type: 'bones', x: 3380, y: 978 },
+      { type: 'pillar', x: 1600, y: 1440 },
+      { type: 'pillar', x: 3020, y: 1440 },
+      { type: 'web', x: 150, y: 700 },
+      { type: 'web', x: 2900, y: 700 },
+      { type: 'web', x: 3450, y: 640 },
+    ];
+
+    this.triggerZones = [
+      { id: 'scare2', x: 1180, y: 500, w: 60, h: 560, used: false },
+    ];
+  },
+
   reset() {
     for (const t of this.triggerZones) t.used = false;
+    if (this.gate) this.gate.open = true;
     for (const s of this.solids) {
       if (s.move) {
         s.x = 1870;
@@ -151,6 +294,7 @@ export const Level = {
     e.x += e.vx * dt;
     let b = this.box(e);
     for (const s of this.solids) {
+      if (s.open) continue;
       if (!this.overlap(b, s)) continue;
       if (e.vx > 0) e.x = s.x - e.w / 2;
       else if (e.vx < 0) e.x = s.x + s.w + e.w / 2;
@@ -166,6 +310,7 @@ export const Level = {
     b = this.box(e);
 
     for (const s of this.solids) {
+      if (s.open) continue;
       if (!this.overlap(b, s)) continue;
       if (e.vy >= 0) {
         e.y = s.y;
@@ -180,7 +325,7 @@ export const Level = {
     }
 
     // One-way platforms: only when falling from above
-    if (e.vy >= 0) {
+    if (e.vy >= 0 && !e.ignoreOneways) {
       for (const s of this.oneways) {
         if (!this.overlap(b, s)) continue;
         if (prevFeet <= s.y + 2 && e.y >= s.y) {
@@ -196,6 +341,16 @@ export const Level = {
 
   hazardAt(b) {
     for (const h of this.hazards) if (this.overlap(b, h)) return h;
+    return null;
+  },
+
+  /* Any solid/plank blocking a projectile. */
+  solidAt(b) {
+    for (const s of this.solids) {
+      if (s.open) continue;
+      if (this.overlap(b, s)) return s;
+    }
+    for (const s of this.oneways) if (this.overlap(b, s)) return s;
     return null;
   },
 };

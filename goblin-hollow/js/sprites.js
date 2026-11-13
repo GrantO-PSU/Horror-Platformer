@@ -19,6 +19,17 @@ export const AnimDefs = {
   guard:    { row: 2, start: 9, count: 1, fps: 1, loop: false },
 };
 
+/* Enemy sheet (mon2 skeleton) is a 8 x 8 grid of 64x64 cells.
+   Row 0: idle (0-3), Row 1: walk (0-3), Row 2: attack (0-3),
+   Row 3: death (0-6). Rows 5-7 hold the ghost-skull form (unused).
+   Every cell shares the same foot line at y = 61. */
+export const EnemyAnimDefs = {
+  idle:   { row: 0, start: 0, count: 4, fps: 6, loop: true },
+  walk:   { row: 1, start: 0, count: 4, fps: 10, loop: true },
+  attack: { row: 2, start: 0, count: 4, fps: 14, loop: false },
+  dead:   { row: 3, start: 0, count: 7, fps: 12, loop: false },
+};
+
 export const Sprites = {
   frame(name, t) {
     const a = AnimDefs[name] || AnimDefs.idle;
@@ -27,6 +38,32 @@ export const Sprites = {
     else i = Math.min(i, a.count - 1);
     if (i < 0) i = 0;
     return { col: a.start + i, row: a.row, wide: a.wide || 1 };
+  },
+
+  enemyFrame(name, t) {
+    const a = EnemyAnimDefs[name] || EnemyAnimDefs.idle;
+    let i = Math.floor(t * a.fps);
+    if (a.loop) i %= a.count;
+    else i = Math.min(i, a.count - 1);
+    if (i < 0) i = 0;
+    return { col: a.start + i, row: a.row };
+  },
+
+  /* Draw one 64x64 enemy cell with its feet planted on (x, y). */
+  drawEnemy(ctx, img, frame, x, y, flip, scale, alpha) {
+    if (!img || !img.complete || img.naturalWidth === 0) return;
+    const CW = 64, CH = 64, FOOT = 61, CENTER = 3; // art sits 3px right of cell centre
+    ctx.save();
+    ctx.translate(x, y);
+    if (flip) ctx.scale(-1, 1);
+    ctx.scale(scale, scale);
+    if (alpha != null) ctx.globalAlpha = alpha;
+    ctx.drawImage(
+      img,
+      frame.col * CW, frame.row * CH, CW, CH,
+      -CW / 2 - CENTER, -FOOT, CW, CH
+    );
+    ctx.restore();
   },
 
   drawLayers(ctx, layers, frame, x, y, flip, scale, alpha, extra) {
@@ -64,6 +101,46 @@ export const Sprites = {
     ctx.arc(px - 4 * scale, py, 1.6 * scale, 0, Math.PI * 2);
     ctx.arc(px + 6 * scale, py, 1.6 * scale, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  },
+
+  /* Procedural bow held at the hip/chest. Pull 0..1 draws the string back. */
+  drawBow(ctx, x, y, flip, pull) {
+    const f = flip ? -1 : 1;
+    ctx.save();
+    ctx.translate(x + f * 14, y - 46);
+    ctx.scale(f, 1);
+
+    // limb
+    ctx.strokeStyle = '#8b5a2b';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, 0, 17, -1.15, 1.15);
+    ctx.stroke();
+
+    // string, pulled back toward the archer
+    const tx = 17 * Math.cos(1.15);
+    const ty = 17 * Math.sin(1.15);
+    const back = -(2 + pull * 9);
+    ctx.strokeStyle = 'rgba(238,231,214,0.9)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tx, -ty);
+    ctx.lineTo(back, 0);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+
+    // nocked arrow
+    if (pull > 0.05) {
+      ctx.strokeStyle = '#cdb894';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(back - 22, 0);
+      ctx.lineTo(back + 4, 0);
+      ctx.stroke();
+    }
+
     ctx.restore();
   },
 

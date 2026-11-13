@@ -244,6 +244,32 @@ export const Snd = {
     this.noise(0.3, { gain: 0.08, freq: 600, to: 90 });
   },
 
+  /* Skeleton bursting apart: bone crack over a low boom. */
+  explode() {
+    this.tone(120, 0.42, { type: 'sawtooth', gain: 0.13, to: 34 });
+    this.tone(62, 0.36, { type: 'sine', gain: 0.16, to: 26 });
+    this.noise(0.3, { gain: 0.2, freq: 1500, to: 140 });
+    this.noise(0.16, { gain: 0.12, freq: 3400, to: 700, delay: 0.03 });
+  },
+
+  /* Bowstring release. */
+  bow() {
+    this.tone(430, 0.1, { type: 'triangle', gain: 0.08, to: 170 });
+    this.noise(0.12, { gain: 0.11, freq: 2600, to: 900, type: 'highpass' });
+  },
+
+  /* Giant skeleton cues. */
+  bossRoar() {
+    this.tone(88, 0.7, { type: 'sawtooth', gain: 0.16, to: 38 });
+    this.tone(52, 0.85, { type: 'sine', gain: 0.14, to: 26 });
+    this.noise(0.6, { gain: 0.1, freq: 760, to: 90 });
+  },
+
+  bossSlam() {
+    this.tone(64, 0.34, { type: 'sawtooth', gain: 0.17, to: 24 });
+    this.noise(0.28, { gain: 0.2, freq: 520, to: 60 });
+  },
+
   hurt() {
     this.tone(220, 0.30, { type: 'sawtooth', gain: 0.16, to: 70 });
     this.noise(0.22, { gain: 0.12, freq: 1200, to: 200 });

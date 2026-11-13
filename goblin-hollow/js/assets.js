@@ -1,7 +1,6 @@
 /* Image loading + modular goblin compositing */
 export const Assets = {
   img: {},
-  enemySheets: [],
   rockTile: null,
   mossTile: null,
   done: false,
@@ -19,6 +18,7 @@ export const Assets = {
     ['dagger', 'assets/goblin/weapons/dagger.png'],
     ['hammer', 'assets/goblin/weapons/hammer.png'],
     ['rock', 'assets/tiles/rock.png'],
+    ['mon2', 'assets/enemies/mon2_sprite_base.png'],
   ],
 
   load(onDone) {
@@ -27,7 +27,6 @@ export const Assets = {
       remaining--;
       if (remaining > 0) return;
       this.done = true;
-      this._buildEnemySheets();
       this._buildTiles();
       onDone();
     };
@@ -57,15 +56,6 @@ export const Assets = {
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
     return c;
-  },
-
-  _buildEnemySheets() {
-    const base = this.img.base;
-    if (!base) return;
-    this.enemySheets = [
-      this._tint(base, '#2a0b3d', 0.72),
-      this._tint(base, '#3d0a0a', 0.70),
-    ];
   },
 
   // Build tileable stone + moss textures from the Tile Map sheet.
@@ -130,7 +120,7 @@ export const Assets = {
     ];
   },
 
-  enemyLook(i) {
-    return [{ img: this.enemySheets[i % Math.max(1, this.enemySheets.length)] }];
+  enemyLook(/* i */) {
+    return [{ img: this.img.mon2 }];
   },
 };

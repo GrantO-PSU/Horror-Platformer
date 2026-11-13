@@ -5,7 +5,7 @@ import { Snd } from './audio.js';
 import { Assets } from './assets.js';
 import { Sprites } from './sprites.js';
 import { Level } from './level.js';
-import { Player, Enemy, Ember, Checkpoint, Camera, Particles, clamp, lerp } from './entities.js';
+import { Player, Enemy, Ember, Checkpoint, Arrow, BowPickup, BossSkeleton, Camera, Particles, clamp, lerp } from './entities.js';
 import { Render } from './render.js';
 
 function drawText(ctx, str, x, y, opts = {}) {
@@ -71,6 +71,30 @@ function drawEmberIcon(ctx, cx, cy, r, lit) {
   ctx.restore();
 }
 
+function drawArrowIcon(ctx, cx, cy, s) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(s, s);
+  ctx.fillStyle = '#cdb894';
+  ctx.fillRect(-10, -1, 18, 2);
+  ctx.fillStyle = '#e6e0cf';
+  ctx.beginPath();
+  ctx.moveTo(12, 0);
+  ctx.lineTo(4, -4);
+  ctx.lineTo(4, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#8a4a3a';
+  ctx.beginPath();
+  ctx.moveTo(-11, 0);
+  ctx.lineTo(-5, -4);
+  ctx.lineTo(-7, 0);
+  ctx.lineTo(-5, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 export const Game = {
   canvas: null,
   ctx: null,
@@ -85,6 +109,11 @@ export const Game = {
   collected: 0,
   exitActive: false,
   respawn: { x: 96, y: 980 },
+
+  level: 1,
+  boss: null,
+  bossActive: false,
+  bossDefeated: false,
 
   flashA: 0,
   flashColor: '255,255,255',
@@ -135,23 +164,56 @@ export const Game = {
   },
 
   newRun() {
-    Level.reset();
+    this.level = 1;
+    this.startLevel(1, {});
+  },
+
+  /* Build a stage from Level data and drop the player into it. */
+  startLevel(n, opts = {}) {
+    this.level = n;
+    Level.build(n);
     Particles.clear();
-    this.player = new Player(Level.spawn.x, Level.spawn.y);
+
+    const sp = opts.spawn || Level.spawn;
+    this.player = new Player(sp.x, sp.y);
+    this.player.arrows = opts.arrows || 0;
+    if (opts.health != null) this.player.health = clamp(opts.health, 1, this.player.maxHealth);
+    this.bowTaken = !!opts.bowTaken;
+
     this.enemies = Level.enemySpawns.map((s, i) => new Enemy(s, i));
+    this.boss = Level.bossSpawn ? new BossSkeleton(Level.bossSpawn) : null;
+    this.bossActive = false;
+    this.bossDefeated = false;
     this.embers = Level.emberSpawns.map((s) => new Ember(s.x, s.y));
+    this.bowPickups = Level.bowSpawns.map((s) => new BowPickup(s.x, s.y));
     this.checkpoints = Level.checkpointSpawns.map((s) => new Checkpoint(s.x, s.y));
-    this.checkpoints[0].active = true;
+    if (this.checkpoints.length) this.checkpoints[0].active = true;
+
+    this.arrows = [];
     this.collected = 0;
     this.exitActive = false;
-    this.respawn = { x: Level.spawn.x, y: Level.spawn.y };
+    this.respawn = { x: sp.x, y: sp.y };
     this.flashA = 0;
     this.lightBoost = 1;
     this.deathTimer = 0;
     this.heartbeatT = 0.6;
-    this.hintT = 9;
+    this.hintT = opts.hint === false ? 0 : 9;
     this.toastT = 0;
     Camera.reset(this.player);
+  },
+
+  goToLevel(n) {
+    const carry = {
+      arrows: this.player ? this.player.arrows : 0,
+      bowTaken: this.bowTaken,
+      health: this.player ? this.player.maxHealth : 3,
+    };
+    this.startLevel(n, carry);
+    this.state = 'playing';
+    Snd.blip();
+    this.flash(0.5, '150,255,210');
+    this.addShake(5, 0.4);
+    this.toast(n === 2 ? 'LEVEL 2  —  THE SUNKEN VAULT' : 'Level ' + n, 3.4);
   },
 
   startRun() {
@@ -162,9 +224,18 @@ export const Game = {
 
   respawnAtCheckpoint() {
     const rp = this.respawn;
+    const arrows = this.player ? this.player.arrows : 0;
     this.player = new Player(rp.x, rp.y);
+    this.player.arrows = arrows;
     this.player.invuln = 1.4;
     this.player.health = this.player.maxHealth;
+    this.arrows = [];
+    // Reset an unfinished boss fight so the arena can't be entered half-cleared.
+    if (this.boss && !this.bossDefeated) {
+      this.boss = new BossSkeleton(Level.bossSpawn);
+      this.bossActive = false;
+      if (Level.gate) Level.gate.open = true;
+    }
     this.state = 'playing';
     this.deathTimer = 0;
     this.flashA = 0;
@@ -193,9 +264,33 @@ export const Game = {
     // hook for future score / drops
   },
 
+  startBossFight(/* boss */) {
+    if (this.bossActive) return;
+    this.bossActive = true;
+    if (Level.gate) Level.gate.open = false;
+    Snd.sting();
+    Snd.bossRoar();
+    this.addShake(16, 0.7);
+    this.flash(0.5, '170,20,20');
+    this.lightBoost = 1.8;
+    this.toast('THE GIANT SKELETON WAKES', 3.2);
+  },
+
+  onBossDefeated(/* boss */) {
+    this.bossDefeated = true;
+    this.exitActive = true;
+    if (Level.gate) Level.gate.open = true;
+    this.toast('The guardian falls — the brazier awakens', 3.8);
+  },
+
   flash(a, color) {
     this.flashA = Math.max(this.flashA, a);
     this.flashColor = color || '255,255,255';
+  },
+
+  spawnArrow(p) {
+    const dir = p.facing >= 0 ? 1 : -1;
+    this.arrows.push(new Arrow(p.x + dir * 20, p.y - 46, dir));
   },
 
   toast(msg, dur) {
@@ -264,7 +359,13 @@ export const Game = {
     this.player.update(dt, this);
 
     for (const en of this.enemies) en.update(dt, this);
-    this.enemies = this.enemies.filter((e) => !(e.state === 'dead' && e.deadT > 2.6));
+    this.enemies = this.enemies.filter((e) =>
+      !(e.state === 'dead' && e.deadT > (e.exploded ? 0.4 : 2.6)));
+
+    if (this.boss) {
+      this.boss.update(dt, this);
+      if (this.boss.state === 'dead' && this.boss.deadT > 0.8) this.boss = null;
+    }
 
     // Sword hits
     if (this.player.attackActive()) {
@@ -276,13 +377,52 @@ export const Game = {
           en.hit(this.player.x, this);
         }
       }
+      if (this.boss && this.boss.state !== 'dead' && !this.player.hitSet.has(this.boss) &&
+          Level.overlap(ab, this.boss.box)) {
+        this.player.hitSet.add(this.boss);
+        this.boss.hit(this.player.x, this);
+      }
     }
 
-    // Enemy contact
+    // Arrows
+    for (const a of this.arrows) {
+      a.update(dt);
+      if (a.dead) continue;
+      if (this.boss && this.boss.state !== 'dead' && Level.overlap(a.box, this.boss.box)) {
+        this.boss.hit(a.x, this);
+        a.dead = true;
+        Snd.hit();
+        Particles.boneBurst(a.x, a.y, 5);
+        continue;
+      }
+      for (const en of this.enemies) {
+        if (en.state === 'dead') continue;
+        if (Level.overlap(a.box, en.box)) {
+          en.hit(a.x, this);
+          a.dead = true;
+          Snd.hit();
+          Particles.boneBurst(a.x, a.y, 4);
+          break;
+        }
+      }
+    }
+    this.arrows = this.arrows.filter((a) => !a.dead);
+
+    // Giant skeleton contact (not during its hit recovery)
+    if (this.boss && this.boss.state !== 'dead' &&
+        this.boss.stun <= 0 && this.boss.hitFlash <= 0 &&
+        this.player.state !== 'dead') {
+      if (Level.overlap(this.player.box, this.boss.box)) {
+        this.player.takeHit(1, this.boss.x, this);
+      }
+    }
+
+    // Enemy contact: only a visible lunge attack hurts, not passive body overlap
     if (this.player.state !== 'dead') {
       const pb = this.player.box;
       for (const en of this.enemies) {
-        if (en.state === 'dead') continue;
+        if (en.state === 'dead' || en.stun > 0 || en.hitFlash > 0) continue;
+        if (en.atkT <= 0) continue;
         if (Level.overlap(pb, en.box)) {
           if (this.player.takeHit(1, en.x, this)) break;
         }
@@ -307,6 +447,23 @@ export const Game = {
         } else {
           this.toast('Ember recovered   ' + this.collected + '/3');
         }
+      }
+    }
+
+    // Bow pickups
+    for (const b of this.bowPickups) {
+      b.update(dt);
+      if (b.taken) continue;
+      const dx = b.x - this.player.x;
+      const dy = b.y - (this.player.y - 34);
+      if (dx * dx + dy * dy < 48 * 48 && this.player.state !== 'dead') {
+        b.taken = true;
+        this.bowTaken = true;
+        this.player.giveBow(CFG.BOW_PICKUP_AMMO);
+        Snd.pickup();
+        Particles.sparkle(b.x, b.y, 18);
+        this.flash(0.14, '255,200,140');
+        this.toast('Bow acquired   +' + CFG.BOW_PICKUP_AMMO + ' arrows', 2.8);
       }
     }
 
@@ -338,6 +495,10 @@ export const Game = {
     // Exit
     if (this.exitActive && this.player.state !== 'dead') {
       if (Level.overlap(this.player.box, Level.exit.box)) {
+        if (this.level === 1) {
+          this.goToLevel(2);
+          return;
+        }
         this.state = 'win';
         Snd.brazier();
         this.flash(0.85, '160,255,200');
@@ -353,12 +514,19 @@ export const Game = {
     }
 
     // Camera + atmosphere
-    Camera.update(dt, this.player, this.player.facing);
+    let lift = 0;
+    if (this.boss && !this.boss.exploded) {
+      lift = clamp((this.boss.groundY - this.boss.y) * 0.55, 0, 130);
+    }
+    Camera.update(dt, this.player, this.player.facing, lift);
 
     let nearest = 9999;
     for (const en of this.enemies) {
       if (en.state === 'dead') continue;
       nearest = Math.min(nearest, Math.abs(en.x - this.player.x));
+    }
+    if (this.boss && this.boss.state !== 'dead') {
+      nearest = Math.min(nearest, Math.abs(this.boss.x - this.player.x));
     }
     const prox = clamp(1 - nearest / 420, 0, 1);
     const low = 1 - this.player.health / this.player.maxHealth;
@@ -436,8 +604,11 @@ export const Game = {
     Render.torches(ctx, Camera, this.time);
     Render.exit(ctx, Camera, this.time, this.exitActive);
     for (const e of this.embers) e.draw(ctx);
+    for (const b of this.bowPickups) b.draw(ctx);
     for (const c of this.checkpoints) c.draw(ctx);
     for (const en of this.enemies) en.draw(ctx, this.time);
+    if (this.boss) this.boss.draw(ctx, this.time);
+    for (const a of this.arrows) a.draw(ctx);
     this.player.draw(ctx, this.time);
     Particles.draw(ctx);
     ctx.restore();
@@ -449,10 +620,13 @@ export const Game = {
     ctx.save();
     ctx.translate(-Camera.x + Camera.sx, -Camera.y + Camera.sy);
     for (const e of this.embers) if (!e.taken) e.draw(ctx);
+    for (const b of this.bowPickups) if (!b.taken) b.draw(ctx);
     Render.torches(ctx, Camera, this.time);
     Render.exit(ctx, Camera, this.time, this.exitActive);
     for (const c of this.checkpoints) if (c.active) c.draw(ctx);
     for (const en of this.enemies) en.drawEyes(ctx, this.time);
+    if (this.boss) this.boss.drawEyes(ctx, this.time);
+    for (const a of this.arrows) a.draw(ctx);
     this.drawPlayerGlow(ctx);
     ctx.restore();
 
@@ -501,27 +675,46 @@ export const Game = {
       drawHeart(ctx, 34 + i * 34, 32, 12, i < p.health);
     }
 
-    // embers
-    for (let i = 0; i < 3; i++) {
-      drawEmberIcon(ctx, 34 + i * 30, 70, 7, i < this.collected);
+    // embers (level 1 objective)
+    if (this.level === 1) {
+      for (let i = 0; i < 3; i++) {
+        drawEmberIcon(ctx, 34 + i * 30, 70, 7, i < this.collected);
+      }
+      drawText(ctx, 'EMBERS', 34, 96, {
+        font: '11px "Courier New", monospace', color: 'rgba(170,190,190,0.65)',
+      });
     }
-    drawText(ctx, 'EMBERS', 34, 96, {
-      font: '11px "Courier New", monospace', color: 'rgba(170,190,190,0.65)',
-    });
+
+    // bow / arrows
+    if (this.bowTaken) {
+      drawArrowIcon(ctx, 38, 126, 1);
+      drawText(ctx, 'ARROWS  ' + p.arrows, 56, 131, {
+        font: '13px "Courier New", monospace',
+        color: p.arrows > 0 ? 'rgba(235,214,175,0.9)' : 'rgba(150,145,135,0.55)',
+      });
+    }
 
     // objective
-    const obj = this.exitActive
-      ? 'Reach the brazier'
-      : 'Gather the three embers';
+    let obj;
+    if (this.level === 1) {
+      obj = this.exitActive ? 'Reach the brazier' : 'Gather the three embers';
+    } else {
+      obj = this.exitActive
+        ? 'Reach the brazier'
+        : (this.bossActive ? 'Fell the giant skeleton' : 'Descend into the vault');
+    }
     drawText(ctx, obj, CFG.W - 24, 34, {
       align: 'right', font: '14px "Courier New", monospace',
       color: this.exitActive ? 'rgba(150,255,210,0.9)' : 'rgba(180,190,200,0.7)',
       shadow: this.exitActive ? 'rgba(60,220,160,0.6)' : null, blur: 10,
     });
 
+    this.drawBossBar();
+
     if (this.hintT > 0) {
       const a = clamp(this.hintT / 9, 0, 1);
-      drawText(ctx, 'A / D  move      W / SPACE  jump      J / CLICK  attack', CFG.W / 2, CFG.H - 26, {
+      const atk = (this.bowTaken && p.arrows > 0) ? 'J / CLICK  shoot' : 'J / CLICK  attack';
+      drawText(ctx, 'A / D  move      W / SPACE  jump      ' + atk, CFG.W / 2, CFG.H - 26, {
         align: 'center', font: '13px "Courier New", monospace',
         color: 'rgba(200,205,215,0.8)', alpha: a,
       });
@@ -539,6 +732,40 @@ export const Game = {
         shadow: 'rgba(0,0,0,0.9)', blur: 8,
       });
     }
+  },
+
+  drawBossBar() {
+    const b = this.boss;
+    if (!b || !this.bossActive || b.state === 'dead') return;
+    const ctx = this.ctx;
+    const w = 420;
+    const h = 12;
+    const x = (CFG.W - w) / 2;
+    const y = 64;
+
+    drawText(ctx, 'THE GIANT SKELETON', CFG.W / 2, y - 10, {
+      align: 'center', font: 'bold 15px "Courier New", monospace',
+      color: 'rgba(240,224,202,0.95)', shadow: 'rgba(170,20,20,0.85)', blur: 12,
+    });
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,6,10,0.75)';
+    ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+    ctx.fillStyle = 'rgba(52,12,16,0.9)';
+    ctx.fillRect(x, y, w, h);
+
+    const f = clamp(b.hp / b.maxHp, 0, 1);
+    const g = ctx.createLinearGradient(x, 0, x + w, 0);
+    g.addColorStop(0, '#7d1120');
+    g.addColorStop(0.6, '#d13a42');
+    g.addColorStop(1, '#ff8a68');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w * f, h);
+
+    ctx.strokeStyle = 'rgba(232,198,182,0.38)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - 2.5, y - 2.5, w + 5, h + 5);
+    ctx.restore();
   },
 
   drawTitle() {
@@ -584,7 +811,7 @@ export const Game = {
       shadow: 'rgba(160,30,40,0.5)', blur: 12,
     });
 
-    drawText(ctx, 'A / D  move      W / SPACE  jump      J / CLICK  attack', CFG.W / 2, CFG.H - 52, {
+    drawText(ctx, 'A / D  move      W / SPACE  jump      J / CLICK  attack / shoot', CFG.W / 2, CFG.H - 52, {
       align: 'center', font: '13px "Courier New", monospace',
       color: 'rgba(190,195,205,0.65)',
     });
@@ -611,7 +838,7 @@ export const Game = {
       align: 'center', font: '17px "Courier New", monospace',
       color: 'rgba(200,205,215,0.8)',
     });
-    drawText(ctx, 'A / D  move    W / SPACE  jump    J / CLICK  attack    M  mute', CFG.W / 2, CFG.H / 2 + 62, {
+    drawText(ctx, 'A / D  move    W / SPACE  jump    J / CLICK  attack / shoot    M  mute', CFG.W / 2, CFG.H / 2 + 62, {
       align: 'center', font: '12px "Courier New", monospace',
       color: 'rgba(150,160,170,0.6)',
     });
@@ -628,7 +855,10 @@ export const Game = {
       align: 'center', font: 'bold 46px Georgia, serif', color: '#c9303f',
       shadow: 'rgba(180,10,20,0.8)', blur: 26,
     });
-    drawText(ctx, 'Embers held: ' + this.collected + ' / 3', CFG.W / 2, CFG.H / 2 + 26, {
+    const sub = this.level === 1
+      ? 'Embers held: ' + this.collected + ' / 3'
+      : 'The guardian still stands';
+    drawText(ctx, sub, CFG.W / 2, CFG.H / 2 + 26, {
       align: 'center', font: '16px "Courier New", monospace',
       color: 'rgba(210,200,200,0.75)',
     });
@@ -659,7 +889,7 @@ export const Game = {
       align: 'center', font: '18px "Courier New", monospace',
       color: 'rgba(200,235,220,0.85)',
     });
-    drawText(ctx, 'All three embers recovered.', CFG.W / 2, CFG.H / 2 + 46, {
+    drawText(ctx, 'The giant skeleton is dust.', CFG.W / 2, CFG.H / 2 + 46, {
       align: 'center', font: '14px "Courier New", monospace',
       color: 'rgba(160,210,190,0.7)',
     });
